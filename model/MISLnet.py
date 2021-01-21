@@ -33,12 +33,6 @@ class MISLnet(nn.Module):
             self.const_weight.data[i, 0, :, :] = (
                 self.const_weight.data[i, 0, :, :] / self.const_weight.data[i, 0, :, :].sum()
             )
-            self.const_weight.data[i, 1, :, :] = (
-                self.const_weight.data[i, 1, :, :] / self.const_weight.data[i, 1, :, :].sum()
-            )
-            self.const_weight.data[i, 2, :, :] = (
-                self.const_weight.data[i, 2, :, :] / self.const_weight.data[i, 2, :, :].sum()
-            )
         self.const_weight.data[:, :, 2, 2] = -1
 
     def forward(self, x):

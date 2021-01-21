@@ -1,6 +1,6 @@
 import os
+from shutil import copyfile
 
-from PIL.Image import NEAREST
 import numpy as np
 import torch
 import torch.nn as nn
@@ -27,7 +27,7 @@ def test(model, loader):
             correct += pred.eq(y.view_as(pred)).sum().item()
     test_loss /= len(loader.dataset)
     acc = 100.0 * correct / len(loader.dataset)
-    return test_loss, acc
+    return test_loss, acc, pred
 
 
 def dataset(data_dir):
@@ -36,22 +36,49 @@ def dataset(data_dir):
     data_transform = transforms.Compose([resize, grayscale, transforms.ToTensor()])
 
     dataset = ImageFolder(data_dir, transform=data_transform)
-    dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
-    classes = ["authentic", "manipulated"]
+    dataloader = DataLoader(dataset, batch_size=config.batch_size, shuffle=False)
+
     return dataloader
 
 
+def check_predictions(pred, dataset):
+    """예측값 별로 test 이미지 split하여 폴더별 저장
+    args: test prediction 값, loader의 dataset
+    """
+    pred_dir = config.test_dataset + "/pred"
+    authentic_dir = pred_dir + "/authentic/"
+    manipulated_dir = pred_dir + "/manipulated/"
+    if not os.path.isdir(authentic_dir):
+        os.makedirs(authentic_dir)
+    if not os.path.isdir(manipulated_dir):
+        os.makedirs(manipulated_dir)
+
+    for i in range(len(pred)):
+        base_name = dataset.imgs[i][0].split("/")[4]
+        if pred[i].item() == 0:
+            copyfile(dataset.imgs[i][0], authentic_dir + base_name)
+        else:
+            copyfile(dataset.imgs[i][0], manipulated_dir + base_name)
+
+
 if __name__ == "__main__":
-    # 체크포인트 모델 로드
-    # model = MISLnet().to(config.device)
-    # checkpoint = torch.load(config.model_path + "50_model.pt", map_location=torch.device("cpu"))
-    # model.load_state_dict(checkpoint['model_state_dict'])
+    # 최종 모델 로드
+    # model = torch.load(config.model_path + "MISLnet.pt", map_location=config.device)
     # model.eval()
 
-    # 최종 모델 로드
-    model = torch.load(config.model_path + "MISLnet.pt", map_location=torch.device("cpu"))
+    # 체크포인트 모델 로드
+    model = MISLnet().to(config.device)
+    if torch.cuda.is_available():
+        checkpoint = torch.load(config.model_path + "60_model.pt")
+    else:
+        checkpoint = torch.load(config.model_path + "60_model.pt", map_location=config.device)
+    model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
 
     loader = dataset(config.test_dataset)
-    test_loss, acc = test(model, loader)
+    test_loss, acc, pred = test(model, loader)
+
+    # pred에 따라 파일 분류
+    check_predictions(pred, loader.dataset)
+
     print("-> testing loss={} acc={}".format(test_loss, acc))

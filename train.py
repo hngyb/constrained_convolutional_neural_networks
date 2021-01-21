@@ -27,6 +27,9 @@ def train(model, loader):
     batch_size = config.batch_size
     model_path = config.model_path
 
+    if not os.path.isdir(model_path):
+        os.makedirs(model_path)
+
     print("start train model")
 
     max_step = 0
@@ -38,7 +41,6 @@ def train(model, loader):
         acc_list = []
         for step, (x, y) in enumerate(loader):
             max_step = max(max_step, step)
-            global_step = epoch * max_step + step
             x, y = x.to(device), y.to(device)
             output = model(x)
             loss = F.cross_entropy(output, y).to(device)
@@ -54,6 +56,7 @@ def train(model, loader):
         print(
             "-> training epoch={:d} loss={:.3f} acc={:.3f}%".format(epoch, loss, np.mean(acc_list))
         )
+        scheduler.step()
 
         # 텐서보드 기록
         # 텐서보드 커맨드: tensorboard --logdir=runs
@@ -89,7 +92,6 @@ def dataset(data_dir):
 
     dataset = ImageFolder(data_dir, transform=data_transform)
     dataloader = DataLoader(dataset, batch_size=config.batch_size, shuffle=True)
-    classes = ["authentic", "manipulated"]
 
     return dataloader
 
