@@ -14,7 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 import torchvision.transforms as transforms
 
 
-def train(model, loader):
+def train(model, train_loader, valid_loader):
     """MISLnet 학습
     args: model ,loader
     return: 1에폭마다 모델 체크포인트 저장
@@ -29,7 +29,6 @@ def train(model, loader):
 
     if not os.path.isdir(model_path):
         os.makedirs(model_path)
-
     print("start train model")
 
     max_step = 0
@@ -39,13 +38,13 @@ def train(model, loader):
     )  # 스케줄러: 6에폭마다 lr * 0.5
     for epoch in range(total_epoch):
         acc_list = []
-        for step, (x, y) in enumerate(loader):
+        for step, (x, y) in enumerate(train_loader):
             max_step = max(max_step, step)
             x, y = x.to(device), y.to(device)
             output = model(x)
-            loss = F.cross_entropy(output, y).to(device)
+            train_loss = F.cross_entropy(output, y).to(device)
             model.zero_grad()
-            loss.backward()
+            train_loss.backward()
             optimizer.step()
 
             pred = output.data.max(1)[1]
@@ -54,14 +53,30 @@ def train(model, loader):
             acc_list.append(acc)
             print("epoch: {} step: {} done".format(epoch, step))
         print(
-            "-> training epoch={:d} loss={:.3f} acc={:.3f}%".format(epoch, loss, np.mean(acc_list))
+            "-> training epoch={:d} loss={:.3f} acc={:.3f}%".format(
+                epoch, train_loss, np.mean(acc_list)
+            )
         )
         scheduler.step()
 
         # 텐서보드 기록
         # 텐서보드 커맨드: tensorboard --logdir=runs
-        writer.add_scalar("Loss/train", loss, epoch)
+        writer.add_scalar("Loss/train", train_loss, epoch)
         writer.add_scalar("Accuracy/train", np.mean(acc_list), epoch)
+
+        # Validation -> Tensorboard
+        valid_acc_list = []
+        for step, (x, y) in enumerate(valid_loader):
+            x, y = x.to(device), y.to(device)
+            output = model(x)
+            valid_loss = F.cross_entropy(output, y).to(device)
+            pred = output.data.max(1)[1]
+            correct = pred.eq(y.data.view_as(pred)).cpu().sum().item()
+            acc = 100.0 * (correct / batch_size)
+            valid_acc_list.append(acc)
+
+        writer.add_scalar("Loss/valid", valid_loss, epoch)
+        writer.add_scalar("Accuracy/valid", np.mean(valid_acc_list), epoch)
         writer.close()
 
         # 모델 체크포인트 저장
@@ -70,7 +85,7 @@ def train(model, loader):
                 "epoch": epoch,
                 "model_state_dict": model.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
-                "loss": loss,
+                "loss": train_loss,
             },
             config.model_path + "{}_model.pt".format(epoch),
         )
@@ -98,5 +113,6 @@ def dataset(data_dir):
 
 if __name__ == "__main__":
     model = MISLnet().to(config.device)
-    loader = dataset(config.train_dataset)
-    train(model, loader)
+    train_loader = dataset(config.train_dataset)
+    valid_loader = dataset(config.test_dataset)
+    train(model, train_loader, valid_loader)

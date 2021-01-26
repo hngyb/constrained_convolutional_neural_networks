@@ -19,15 +19,19 @@ def test(model, loader):
     correct = 0
     test_loss = 0
     with torch.no_grad():
+        pred_outputs = []
+        pred_outputs = torch.tensor(pred_outputs).to(config.device)
         for x, y in loader:
             x, y = x.to(device), y.to(device)
             output = model(x)
             test_loss += F.cross_entropy(output, y, reduction="sum").item()
             pred = output.argmax(dim=1, keepdim=True)
+            pred_outputs = torch.cat([pred_outputs, pred], dim=0)
             correct += pred.eq(y.view_as(pred)).sum().item()
+
     test_loss /= len(loader.dataset)
     acc = 100.0 * correct / len(loader.dataset)
-    return test_loss, acc, pred
+    return test_loss, acc, pred_outputs
 
 
 def dataset(data_dir):
@@ -45,21 +49,19 @@ def check_predictions(pred, dataset):
     """예측값 별로 test 이미지 split하여 폴더별 저장
     args: test prediction 값, loader의 dataset
     """
-    pred_dir = config.test_dataset + "/pred"
+    pred_dir = "./dataset/" + "/pred"
     authentic_dir = pred_dir + "/authentic/"
     manipulated_dir = pred_dir + "/manipulated/"
     if not os.path.isdir(authentic_dir):
         os.makedirs(authentic_dir)
     if not os.path.isdir(manipulated_dir):
         os.makedirs(manipulated_dir)
-
     for i in range(len(pred)):
         base_name = dataset.imgs[i][0].split("/")[4]
         if pred[i].item() == 0:
             copyfile(dataset.imgs[i][0], authentic_dir + base_name)
         else:
             copyfile(dataset.imgs[i][0], manipulated_dir + base_name)
-
 
 if __name__ == "__main__":
     # 최종 모델 로드
@@ -77,8 +79,6 @@ if __name__ == "__main__":
 
     loader = dataset(config.test_dataset)
     test_loss, acc, pred = test(model, loader)
-
     # pred에 따라 파일 분류
     check_predictions(pred, loader.dataset)
-
     print("-> testing loss={} acc={}".format(test_loss, acc))

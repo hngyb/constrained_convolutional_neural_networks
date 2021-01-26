@@ -62,3 +62,5 @@ pytestdebug.log
 ".gitignore" [noeol] 146L, 2124C
 .venv
 .vscode
+dataset/casia/Au
+dataset/casia/Tp
